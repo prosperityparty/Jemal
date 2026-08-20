@@ -22,7 +22,7 @@ const SUPABASE_URL =
   "https://enewahdrrcdepvpfwens.supabase.co";
 
 const SUPABASE_PUBLISHABLE_KEY =
-  "YOUR_SUPABASE_PUBLISHABLE_KEY";
+  "sb_publishable_7GSTI5XHXGTfMMy6nTupKg_AA4CZChH";
 
 const DASHBOARD_URL =
   `${SUPABASE_URL}/rest/v1/qarsa_duula_dashboard?select=*`;
