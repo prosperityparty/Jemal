@@ -1,174 +1,381 @@
-const menuToggle = document.getElementById("menuToggle");
-const navLinks = document.getElementById("navLinks");
+/* =========================================
+   JEMAL v2.0
+   QARSA DUULA - SUPABASE DASHBOARD
+========================================= */
 
-if (menuToggle && navLinks) {
-  menuToggle.addEventListener("click", () => {
-    const active = navLinks.classList.toggle("active");
-    menuToggle.setAttribute("aria-expanded", active);
-  });
+const cfg = window.JEMAL_CONFIG || {};
 
-  document.querySelectorAll(".nav-links a").forEach(link => {
-    link.addEventListener("click", () => {
-      navLinks.classList.remove("active");
-      menuToggle.setAttribute("aria-expanded", "false");
-    });
+const $ = (id) => document.getElementById(id);
+
+
+/* =========================================
+   HELPER: TEXT
+========================================= */
+
+function setText(id, value) {
+  const element = $(id);
+
+  if (element) {
+    element.textContent = value ?? "—";
+  }
+}
+
+
+/* =========================================
+   FORMAT NUMBER
+========================================= */
+
+function formatNumber(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "0";
+  }
+
+  return number.toLocaleString("en-US");
+}
+
+
+/* =========================================
+   MOBILE MENU
+========================================= */
+
+const menuBtn = $("menuBtn");
+const navLinks = $("navLinks");
+
+if (menuBtn && navLinks) {
+  menuBtn.addEventListener("click", () => {
+    navLinks.classList.toggle("open");
   });
 }
 
 
-// SUPABASE
+/* =========================================
+   WHATSAPP CONTACT FORM
+========================================= */
 
-const SUPABASE_URL =
-  "https://enewahdrrcdepvpfwens.supabase.co";
+const contactForm = $("contactForm");
 
-const SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_7GSTI5XHXGTfMMy6nTupKg_AA4CZChH";
+if (contactForm) {
+  contactForm.addEventListener("submit", (e) => {
 
-const DASHBOARD_URL =
-  `${SUPABASE_URL}/rest/v1/qarsa_duula_dashboard?select=*`;
+    e.preventDefault();
 
+    const name = $("name")?.value.trim() || "";
+    const phone = $("phone")?.value.trim() || "";
+    const message = $("message")?.value.trim() || "";
 
-async function loadDashboard() {
-
-  try {
-
-    const response = await fetch(
-      DASHBOARD_URL,
-      {
-        headers: {
-          "apikey": SUPABASE_PUBLISHABLE_KEY,
-          "Authorization":
-            `Bearer ${SUPABASE_PUBLISHABLE_KEY}`
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Supabase Error: ${response.status}`
-      );
-    }
-
-    const data = await response.json();
-
-    console.log("Dashboard:", data);
-
-    if (!data.length) {
-      console.warn("Dashboard data lama helin.");
+    if (!name || !phone || !message) {
+      alert("Fadlan buuxi dhammaan meelaha loo baahan yahay.");
       return;
     }
 
-    const d = data[0];
+    if (!cfg.whatsappNumber) {
+      alert("WhatsApp number weli lama dejin.");
+      return;
+    }
 
-    const qabaleHore =
-      Number(d.qabale_hore || 0);
+    const text =
+      `Jemal v2.0\n\n` +
+      `Magac: ${name}\n` +
+      `Telefoon: ${phone}\n` +
+      `Fariin: ${message}`;
 
-    const qabaleCusub =
-      Number(d.qabale_cusub || 0);
+    const whatsappURL =
+      `https://wa.me/${cfg.whatsappNumber}?text=` +
+      encodeURIComponent(text);
 
-    const qabaleWadarta =
-      Number(d.qabale_wadarta || 0);
-
-    const xubnihiiHore =
-      Number(d.xubnihii_hore || 0);
-
-    const xubnahaCusub =
-      Number(d.xubnaha_cusub || 0);
-
-    const xubinsugayaal =
-      Number(d.xubinsugayaal || 0);
-
-    const xubnahaWadarta =
-      xubnihiiHore + xubnahaCusub;
+    window.open(whatsappURL, "_blank");
+  });
+}
 
 
-    setValue("qabaleHore", qabaleHore);
-    setValue("qabaleCusub", qabaleCusub);
-    setValue("qabaleWadarta", qabaleWadarta);
+/* =========================================
+   SUPABASE CONFIGURATION CHECK
+========================================= */
 
-    setValue("xubnihiiHore", xubnihiiHore);
-    setValue("xubnahaCusub", xubnahaCusub);
-    setValue("xubinsugayaal", xubinsugayaal);
+function checkSupabaseConfig() {
 
-    setValue("xubnahaWadarta", xubnahaWadarta);
-
+  if (!cfg.supabaseUrl) {
+    return false;
   }
 
-  catch (error) {
+  if (!cfg.supabaseUrl.startsWith("http")) {
+    return false;
+  }
+
+  if (!cfg.supabaseKey) {
+    return false;
+  }
+
+  if (cfg.supabaseKey.includes("PASTE_")) {
+    return false;
+  }
+
+  return true;
+}
+
+
+/* =========================================
+   LOAD QARSA DUULA SUMMARY
+========================================= */
+
+async function loadDashboard() {
+
+  const status = $("status");
+
+  /* Check configuration */
+
+  if (!checkSupabaseConfig()) {
+
+    setText(
+      "status",
+      "Supabase config weli lama gelin."
+    );
+
+    console.warn(
+      "JEMAL_CONFIG: supabaseUrl ama supabaseKey lama dejin."
+    );
+
+    return;
+  }
+
+
+  /* Check Supabase library */
+
+  if (!window.supabase) {
+
+    setText(
+      "status",
+      "Supabase library lama helin."
+    );
 
     console.error(
-      "Dashboard error:",
+      "Supabase JavaScript library lama helin."
+    );
+
+    return;
+  }
+
+
+  try {
+
+    /* Create Supabase client */
+
+    const client = window.supabase.createClient(
+      cfg.supabaseUrl,
+      cfg.supabaseKey
+    );
+
+
+    /* =====================================
+       READ qarsa_duula_summary
+    ===================================== */
+
+    const { data, error } = await client
+      .from("qarsa_duula_summary")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    if (!data) {
+
+      setText(
+        "status",
+        "Qarsa Duula summary xog kama helin."
+      );
+
+      console.warn(
+        "qarsa_duula_summary wuxuu soo celiyay xog la'aan."
+      );
+
+      return;
+    }
+
+
+    console.log(
+      "Qarsa Duula Summary:",
+      data
+    );
+
+
+    /* =====================================
+       DATABASE COLUMNS
+       
+       xubnihii_hore
+       xubnaha_cusub
+       xubinsugaya
+    ===================================== */
+
+    const oldMembers =
+      Number(data.xubnihii_hore) || 0;
+
+    const newMembers =
+      Number(data.xubnaha_cusub) || 0;
+
+    const pendingMembers =
+      Number(data.xubinsugaya) || 0;
+
+
+    /* =====================================
+       TOTAL CURRENT MEMBERS
+       
+       16,597 + 844 = 17,441
+    ===================================== */
+
+    const totalMembers =
+      oldMembers + newMembers;
+
+
+    /* =====================================
+       UPDATE DASHBOARD
+    ===================================== */
+
+    setText(
+      "members",
+      formatNumber(totalMembers)
+    );
+
+    setText(
+      "newMembers",
+      formatNumber(newMembers)
+    );
+
+    setText(
+      "pendingMembers",
+      formatNumber(pendingMembers)
+    );
+
+
+    /* =====================================
+       HERO SECTION
+    ===================================== */
+
+    setText(
+      "heroMembers",
+      formatNumber(totalMembers)
+    );
+
+    setText(
+      "heroNew",
+      formatNumber(newMembers)
+    );
+
+
+    /* =====================================
+       OLD MEMBERS
+    ===================================== */
+
+    setText(
+      "oldMembers",
+      formatNumber(oldMembers)
+    );
+
+
+    /* =====================================
+       STATUS
+    ===================================== */
+
+    setText(
+      "heroUpdated",
+      "Live"
+    );
+
+    setText(
+      "status",
+      "Xogta Supabase waa la helay."
+    );
+
+
+    /* =====================================
+       OPTIONAL EXTRA FIELDS
+       Haddii HTML-ku leeyahay
+       elements-kan way shaqaynayaan.
+    ===================================== */
+
+    setText(
+      "xubnihiiHore",
+      formatNumber(oldMembers)
+    );
+
+    setText(
+      "xubnahaCusub",
+      formatNumber(newMembers)
+    );
+
+    setText(
+      "xubinsugaya",
+      formatNumber(pendingMembers)
+    );
+
+    setText(
+      "totalMembers",
+      formatNumber(totalMembers)
+    );
+
+
+    /* =====================================
+       CONSOLE INFORMATION
+    ===================================== */
+
+    console.log(
+      "Jemal v2.0 Dashboard Loaded Successfully"
+    );
+
+    console.log(
+      "Xubnihii hore:",
+      oldMembers
+    );
+
+    console.log(
+      "Xubnaha cusub:",
+      newMembers
+    );
+
+    console.log(
+      "Xubinsugaya:",
+      pendingMembers
+    );
+
+    console.log(
+      "Xubnaha guud:",
+      totalMembers
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Supabase Error:",
       error
     );
 
+    setText(
+      "status",
+      "Dashboard-ku wuu shaqaynayaa, laakiin xogta Supabase lama helin."
+    );
   }
 }
 
 
-function setValue(id, value) {
+/* =========================================
+   START DASHBOARD
+========================================= */
 
-  const element =
-    document.getElementById(id);
+if (document.readyState === "loading") {
 
-  if (element) {
-    element.textContent =
-      Number(value).toLocaleString("en-US");
-  }
-
-}
-
-
-// WHATSAPP CONTACT FORM
-
-const contactForm =
-  document.getElementById("contactForm");
-
-if (contactForm) {
-
-  contactForm.addEventListener(
-    "submit",
-    function(e) {
-
-      e.preventDefault();
-
-      const name =
-        document.getElementById("name")
-          .value.trim();
-
-      const email =
-        document.getElementById("email")
-          .value.trim();
-
-      const message =
-        document.getElementById("message")
-          .value.trim();
-
-      const text =
-        `Salaan Prosperity Party Kersadula District,\n\n` +
-        `Magac: ${name}\n` +
-        `Email: ${email}\n\n` +
-        `Fariin:\n${message}`;
-
-      const whatsappURL =
-        `https://wa.me/251912957760?text=` +
-        encodeURIComponent(text);
-
-      window.open(
-        whatsappURL,
-        "_blank"
-      );
-
-    }
+  document.addEventListener(
+    "DOMContentLoaded",
+    loadDashboard
   );
 
+} else {
+
+  loadDashboard();
+
 }
-
-
-// START
-
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
-    loadDashboard();
-  }
-);
